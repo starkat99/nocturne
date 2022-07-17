@@ -1,3 +1,4 @@
+use std::alloc::Allocator;
 use std::cell;
 use std::mem;
 
@@ -9,13 +10,14 @@ pub unsafe trait Reroot<'root> {
     type Rerooted: ?Sized + 'root;
 }
 
-pub unsafe fn reroot<'root, T>(data: GcPtr<T>) -> GcPtr<T::Rerooted>
+pub unsafe fn reroot<'root, T, A>(data: GcPtr<T, A>) -> GcPtr<T::Rerooted, A>
 where
     T: Reroot<'root> + ?Sized,
     T::Rerooted: Trace,
+    A: Allocator + 'static,
 {
-    let ptr: GcPtr<T::Rerooted> = mem::transmute_copy(&data);
-    nocturne_gc::manage::<T::Rerooted>(ptr);
+    let ptr: GcPtr<T::Rerooted, A> = mem::transmute_copy(&data);
+    nocturne_gc::manage::<T::Rerooted, A>(ptr);
     ptr
 }
 

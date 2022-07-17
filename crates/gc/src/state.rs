@@ -1,3 +1,4 @@
+use std::alloc::{Allocator, Global};
 use std::cell::{Ref, RefCell};
 use std::pin::Pin;
 use std::ptr::NonNull;
@@ -9,13 +10,12 @@ use crate::gc_ptr::GcPtr;
 use crate::list::List;
 use crate::trace::Trace;
 
-#[derive(Default)]
-pub struct GcState {
-    objects: List<Allocation<Data>>,
-    roots: RefCell<Vec<Option<NonNull<Allocation<Data>>>>>,
+pub struct GcState<A: Allocator = Global> {
+    objects: List<Allocation<Data, A>>,
+    roots: RefCell<Vec<Option<NonNull<Allocation<Data, A>>>>>,
 }
 
-impl GcState {
+impl<A: Allocator> GcState<A> {
     pub fn collect(self: Pin<&Self>) {
         for (idx, root) in self.roots()[..].iter().enumerate() {
             if let Some(root) = root {
@@ -36,13 +36,15 @@ impl GcState {
                     &*object as *const _ as usize
                 );
                 unsafe {
-                    Allocation::free(&*object as *const Allocation<Data> as *mut Allocation<Data>)
+                    Allocation::free(
+                        &*object as *const Allocation<Data, A> as *mut Allocation<Data, A>,
+                    )
                 }
             }
         }
     }
 
-    pub unsafe fn manage<T: Trace + ?Sized>(self: Pin<&Self>, ptr: GcPtr<T>) {
+    pub unsafe fn manage<T: Trace + ?Sized>(self: Pin<&Self>, ptr: GcPtr<T, A>) {
         // TODO I should not need a dynamic check here but I am making mistakes
         if ptr.is_unmanaged() {
             self.objects().insert(ptr.erased_pinned());
@@ -57,10 +59,10 @@ impl GcState {
         ret
     }
 
-    pub fn set_root<T: Trace + ?Sized>(self: Pin<&Self>, idx: usize, ptr: GcPtr<T>) {
-        let root: NonNull<Allocation<Data>> = ptr.erased();
+    pub fn set_root<T: Trace + ?Sized>(self: Pin<&Self>, idx: usize, ptr: GcPtr<T, A>) {
+        let root: NonNull<Allocation<Data, A>> = ptr.erased();
         debug!(
-            "ENROOTING root at:          {:x} (idx {:x})",
+            "ENROOTING root at: {:x} (idx {:x})",
             root.as_ptr() as usize,
             idx
         );
@@ -71,18 +73,27 @@ impl GcState {
         debug_assert!(idx + 1 == self.roots.borrow().len());
         if let Some(root) = self.roots.borrow_mut().pop().unwrap() {
             debug!(
-                " DROPPING root at:           {:x} (idx {:x})",
+                "DROPPING root at: {:x} (idx {:x})",
                 root.as_ptr() as usize,
                 idx
             );
         }
     }
 
-    pub fn roots(&self) -> Ref<'_, [Option<NonNull<Allocation<Data>>>]> {
+    pub fn roots(&self) -> Ref<'_, [Option<NonNull<Allocation<Data, A>>>]> {
         Ref::map(self.roots.borrow(), |v| &v[..])
     }
 
-    pub fn objects<'a>(self: Pin<&'a Self>) -> Pin<&'a List<Allocation<Data>>> {
+    pub fn objects<'a>(self: Pin<&'a Self>) -> Pin<&'a List<Allocation<Data, A>>> {
         unsafe { Pin::map_unchecked(self, |this| &this.objects) }
+    }
+}
+
+impl<A: Allocator> Default for GcState<A> {
+    fn default() -> Self {
+        Self {
+            objects: Default::default(),
+            roots: Default::default(),
+        }
     }
 }

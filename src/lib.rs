@@ -1,3 +1,5 @@
+#![feature(allocator_api)]
+
 mod gc;
 mod gc_store;
 mod no_trace;

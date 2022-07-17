@@ -8,3 +8,4 @@ publish = false
 [dependencies]
 log = "0.4.5"
 pin-cell = "0.2.0"
+anymap = "0.12.1"

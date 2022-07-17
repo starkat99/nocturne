@@ -1,11 +1,12 @@
+use std::alloc::{Allocator, Global};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
 use crate::alloc::{Allocation, Data};
 use crate::trace::Trace;
 
-pub struct GcPtr<T: ?Sized> {
-    inner: NonNull<Allocation<T>>,
+pub struct GcPtr<T: ?Sized, A: Allocator = Global> {
+    inner: NonNull<Allocation<T, A>>,
 }
 
 impl<T: Trace> GcPtr<T> {
@@ -16,7 +17,19 @@ impl<T: Trace> GcPtr<T> {
     }
 }
 
-impl<T: ?Sized> GcPtr<T> {
+impl<T: Trace, A: Allocator + Clone> GcPtr<T, A> {
+    pub(crate) fn new_in(data: T, allocator: A) -> GcPtr<T, A> {
+        GcPtr {
+            inner: Allocation::new_in(data, allocator),
+        }
+    }
+}
+
+impl<T: ?Sized, A: Allocator> GcPtr<T, A> {
+    pub unsafe fn allocator(&self) -> &A {
+        self.inner.as_ref().allocator()
+    }
+
     /// Get a reference to the GC'd data
     ///
     /// Invariants: GcPtr must not be dangling
@@ -35,19 +48,19 @@ impl<T: ?Sized> GcPtr<T> {
     ///
     /// Invariants: GcPtr must not be dangling, must not be managed and must not be read again
     pub unsafe fn deallocate(self) {
-        drop(Box::from_raw(self.inner.as_ptr()))
+        drop(Box::from_raw_in(self.inner.as_ptr(), self.allocator()))
     }
 
-    pub(crate) fn erased(self) -> NonNull<Allocation<Data>> {
-        unsafe { NonNull::new_unchecked(self.inner.as_ptr() as *mut Allocation<Data>) }
+    pub(crate) fn erased(self) -> NonNull<Allocation<Data, A>> {
+        unsafe { NonNull::new_unchecked(self.inner.as_ptr() as *mut Allocation<Data, A>) }
     }
 
-    pub(crate) unsafe fn erased_pinned<'a>(self) -> Pin<&'a Allocation<Data>> {
+    pub(crate) unsafe fn erased_pinned<'a>(self) -> Pin<&'a Allocation<Data, A>> {
         Pin::new_unchecked(&*self.erased().as_ptr())
     }
 }
 
-unsafe impl<T: Trace + ?Sized> Trace for GcPtr<T> {
+unsafe impl<T: Trace + ?Sized, A: Allocator + 'static> Trace for GcPtr<T, A> {
     unsafe fn mark(&self) {
         self.inner.as_ref().mark();
     }
@@ -59,10 +72,10 @@ unsafe impl<T: Trace + ?Sized> Trace for GcPtr<T> {
     unsafe fn finalize(&mut self) {}
 }
 
-impl<T: ?Sized> Clone for GcPtr<T> {
-    fn clone(&self) -> GcPtr<T> {
+impl<T: ?Sized, A: Allocator> Clone for GcPtr<T, A> {
+    fn clone(&self) -> GcPtr<T, A> {
         *self
     }
 }
 
-impl<T: ?Sized> Copy for GcPtr<T> {}
+impl<T: ?Sized, A: Allocator> Copy for GcPtr<T, A> {}
