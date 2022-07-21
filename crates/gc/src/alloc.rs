@@ -18,6 +18,12 @@ struct Vtable {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
+#[repr(C)]
+struct TraitObject {
+    data: *const Data,
+    vtable: *mut Vtable,
+}
+
 pub struct Allocation<T: ?Sized, A: Allocator = Global> {
     header: Header<A>,
     pub(crate) data: T,
@@ -105,21 +111,21 @@ impl<T: ?Sized, A: Allocator> Allocation<T, A> {
 
     fn dyn_data(&self) -> &dyn Trace {
         unsafe {
-            let object = Object {
+            let object = TraitObject {
                 data: self.erased().data() as *const Data,
                 vtable: self.header.vtable,
             };
-            mem::transmute::<Object, &dyn Trace>(object)
+            mem::transmute::<TraitObject, &dyn Trace>(object)
         }
     }
 
     fn dyn_data_mut(&mut self) -> &mut dyn Trace {
         unsafe {
-            let object = Object {
+            let object = TraitObject {
                 data: self.erased().data() as *const Data,
                 vtable: self.header.vtable,
             };
-            mem::transmute::<Object, &mut dyn Trace>(object)
+            mem::transmute::<TraitObject, &mut dyn Trace>(object)
         }
     }
 
@@ -134,15 +140,9 @@ impl<A: Allocator> AsRef<List<Allocation<Data, A>>> for Allocation<Data, A> {
     }
 }
 
-#[repr(C)]
-struct Object {
-    data: *const Data,
-    vtable: *mut Vtable,
-}
-
 fn extract_vtable<T: Trace>(data: &T) -> *mut Vtable {
     unsafe {
         let obj = data as &dyn Trace;
-        mem::transmute::<&dyn Trace, Object>(obj).vtable
+        mem::transmute::<&dyn Trace, TraitObject>(obj).vtable
     }
 }

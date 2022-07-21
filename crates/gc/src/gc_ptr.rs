@@ -26,6 +26,9 @@ impl<T: Trace, A: Allocator + Clone> GcPtr<T, A> {
 }
 
 impl<T: ?Sized, A: Allocator> GcPtr<T, A> {
+    /// Get a reference to the allocator of the data
+    ///
+    /// Invariants: GcPtr must not be dangling
     pub unsafe fn allocator(&self) -> &A {
         self.inner.as_ref().allocator()
     }

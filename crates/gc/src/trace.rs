@@ -1,3 +1,9 @@
+use pin_cell::PinCell;
+use std::cell::{Cell, RefCell};
+use std::collections::*;
+use std::mem::{self, ManuallyDrop};
+use std::ptr;
+
 pub unsafe trait Trace {
     unsafe fn mark(&self);
     unsafe fn manage(&self);
@@ -70,6 +76,19 @@ unsafe impl<T: Trace> Trace for [T] {
 
 unsafe impl<T: NullTrace> NullTrace for [T] {}
 
+unsafe impl<T: Trace, const N: usize> Trace for [T; N] {
+    unsafe fn mark(&self) {
+        <_ as AsRef<[T]>>::as_ref(self).mark()
+    }
+    unsafe fn manage(&self) {
+        <_ as AsRef<[T]>>::as_ref(self).manage()
+    }
+    unsafe fn finalize(&mut self) {
+        <_ as AsMut<[T]>>::as_mut(self).finalize()
+    }
+}
+unsafe impl<T: NullTrace, const N: usize> NullTrace for [T; N] {}
+
 macro_rules!
     trace_simple { ($($t:ty)*) => {$(
         unsafe impl Trace for $t {
@@ -122,30 +141,6 @@ trace_simple!(
     std::sync::Once
 );
 
-macro_rules! trace_arrays {
-    ($($N:expr),*)  => {$(
-        unsafe impl<T: Trace> Trace for [T; $N] {
-            unsafe fn mark(&self) {
-                <_ as AsRef<[T]>>::as_ref(self).mark()
-            }
-            unsafe fn manage(&self) {
-                <_ as AsRef<[T]>>::as_ref(self).manage()
-            }
-            unsafe fn finalize(&mut self) {
-                <_ as AsMut<[T]>>::as_mut(self).finalize()
-            }
-        }
-        unsafe impl<T: NullTrace> NullTrace for [T; $N] { }
-    )*};
-}
-
-trace_arrays! {
-    0o00, 0o01, 0o02, 0o03, 0o04, 0o05, 0o06, 0o07,
-    0o10, 0o11, 0o12, 0o13, 0o14, 0o15, 0o16, 0o17,
-    0o20, 0o21, 0o22, 0o23, 0o24, 0o25, 0o26, 0o27,
-    0o30, 0o31, 0o32, 0o33, 0o34, 0o35, 0o36, 0o37
-}
-
 macro_rules! trace_tuples {
     ($(($($T:ident : $N:tt),*))*) => {$(
         unsafe impl<$($T: Trace,)*> Trace for ($($T,)*) {
@@ -178,10 +173,6 @@ trace_tuples! {
     (A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7, I: 8, J: 9, K: 10)
     (A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7, I: 8, J: 9, K: 10, L: 11)
 }
-
-use std::collections::*;
-use std::mem::{self, ManuallyDrop};
-use std::ptr;
 
 unsafe impl<T: Trace> Trace for Vec<T> {
     unsafe fn mark(&self) {
@@ -416,9 +407,6 @@ where
     V: NullTrace,
 {
 }
-
-use pin_cell::PinCell;
-use std::cell::{Cell, RefCell};
 
 unsafe impl<T: NullTrace> Trace for Cell<T> {
     unsafe fn mark(&self) {}
