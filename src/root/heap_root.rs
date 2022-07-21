@@ -7,7 +7,10 @@ use nocturne_gc::{GcPtr, Root, Trace};
 use crate::root::Reroot;
 use crate::Gc;
 
-/// TODO Completely unsound, roots currently always behave as stack roots
+/// TODO Completely unsound, roots currently always behave as stack roots (pop_root etc.)
+/// In other words, the heap root lifetime may be bigger than overlapping stack roots created before
+/// Scenario: Stack root, Box and return a heap root, stack root popped, then heap root popped (wrong order)
+/// Just need to support arbitrary root drops
 pub struct HeapRoot<T: ?Sized, A: Allocator + 'static = Global> {
     _root: Pin<Box<Root<A>, A>>,
     ptr: GcPtr<T, A>,
