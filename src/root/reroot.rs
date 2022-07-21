@@ -90,21 +90,11 @@ reroot_simple!(
     std::sync::Once
 );
 
-macro_rules! reroot_arrays {
-    ($($N:expr),*)  => {$(
-        unsafe impl<'root, T: Reroot<'root>> Reroot<'root> for [T; $N]
-            where T::Rerooted: Sized,
-        {
-            type Rerooted = [T::Rerooted; $N];
-        }
-    )*};
-}
-
-reroot_arrays! {
-    0o00, 0o01, 0o02, 0o03, 0o04, 0o05, 0o06, 0o07,
-    0o10, 0o11, 0o12, 0o13, 0o14, 0o15, 0o16, 0o17,
-    0o20, 0o21, 0o22, 0o23, 0o24, 0o25, 0o26, 0o27,
-    0o30, 0o31, 0o32, 0o33, 0o34, 0o35, 0o36, 0o37
+unsafe impl<'root, T: Reroot<'root>, const N: usize> Reroot<'root> for [T; N]
+where
+    T::Rerooted: Sized,
+{
+    type Rerooted = [T::Rerooted; N];
 }
 
 macro_rules! reroot_tuples {

@@ -1,3 +1,4 @@
+use std::alloc::{Allocator, Global};
 use std::pin::Pin;
 
 use nocturne_gc::{GcPtr, Trace};
@@ -5,18 +6,11 @@ use nocturne_gc::{GcPtr, Trace};
 use crate::root::Reroot;
 use crate::Gc;
 
-pub struct Root<'root> {
-    root: Pin<&'root mut nocturne_gc::Root>,
+pub struct Root<'root, A: Allocator + 'static = Global> {
+    root: Pin<&'root mut nocturne_gc::Root<A>>,
 }
 
 impl<'root> Root<'root> {
-    #[doc(hidden)]
-    pub unsafe fn new(root: &'root mut nocturne_gc::Root) -> Root<'root> {
-        Root {
-            root: Pin::new_unchecked(root),
-        }
-    }
-
     pub fn gc<T>(self, data: T) -> Gc<'root, T::Rerooted>
     where
         T: Reroot<'root> + Trace,
@@ -24,8 +18,29 @@ impl<'root> Root<'root> {
     {
         unsafe { self.make(nocturne_gc::alloc_unmanaged(data)) }
     }
+}
 
-    pub fn reroot<T>(self, gc: Gc<'_, T>) -> Gc<'root, T::Rerooted>
+impl<'root, A: Allocator + Clone + Unpin + 'static> Root<'root, A> {
+    pub fn gc_in<T>(self, data: T, allocator: A) -> Gc<'root, T::Rerooted, A>
+    where
+        T: Reroot<'root> + Trace,
+        T::Rerooted: Trace,
+    {
+        unsafe { self.make(nocturne_gc::alloc_unmanaged_in(data, allocator)) }
+    }
+}
+
+impl<'root, A: Allocator + 'static> Root<'root, A> {
+    #[doc(hidden)]
+    pub unsafe fn new(root: &'root mut nocturne_gc::Root<A>) -> Root<'root, A> {
+        Root {
+            root: Pin::new_unchecked(root),
+        }
+    }
+}
+
+impl<'root, A: Allocator + Unpin + 'static> Root<'root, A> {
+    pub fn reroot<T>(self, gc: Gc<'_, T, A>) -> Gc<'root, T::Rerooted, A>
     where
         T: Reroot<'root> + ?Sized,
         T::Rerooted: Trace,
@@ -33,7 +48,7 @@ impl<'root> Root<'root> {
         unsafe { self.make(Gc::raw(gc)) }
     }
 
-    pub(crate) unsafe fn make<T>(mut self, ptr: GcPtr<T>) -> Gc<'root, T::Rerooted>
+    pub(crate) unsafe fn make<T>(mut self, ptr: GcPtr<T, A>) -> Gc<'root, T::Rerooted, A>
     where
         T: Reroot<'root> + ?Sized,
         T::Rerooted: Trace,
@@ -43,8 +58,8 @@ impl<'root> Root<'root> {
         Gc::rooted(ptr)
     }
 
-    unsafe fn emplace<T: Trace + ?Sized>(&mut self, ptr: GcPtr<T>) {
-        Pin::get_mut(Pin::as_mut(&mut self.root)).enroot(ptr)
+    unsafe fn emplace<T: Trace + ?Sized>(&mut self, ptr: GcPtr<T, A>) {
+        Pin::get_mut(self.root.as_mut()).enroot(ptr)
     }
 }
 

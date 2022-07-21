@@ -23,7 +23,7 @@ pub mod raw {
 pub use self::gc::*;
 pub use self::gc_store::*;
 pub use self::no_trace::*;
-pub use self::root::Root;
+pub use self::root::{HeapRoot, Root};
 
 pub trait Finalize {
     fn finalize(&mut self);

@@ -19,7 +19,7 @@ impl Root {
 }
 
 impl<A: Allocator + 'static> Root<A> {
-    pub fn new_in(_allocator: A) -> Root {
+    pub fn with_allocator() -> Root<A> {
         Root {
             idx: super::new_root::<A>(),
             _phantom: Default::default(),
