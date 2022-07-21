@@ -20,7 +20,7 @@ impl<'root> Root<'root> {
     }
 }
 
-impl<'root, A: Allocator + Clone + Unpin + 'static> Root<'root, A> {
+impl<'root, A: Allocator + Unpin + 'static> Root<'root, A> {
     pub fn gc_in<T>(self, data: T, allocator: A) -> Gc<'root, T::Rerooted, A>
     where
         T: Reroot<'root> + Trace,
@@ -65,7 +65,7 @@ impl<'root, A: Allocator + Unpin + 'static> Root<'root, A> {
 
 #[macro_export]
 macro_rules! letroot {
-    ($($root:ident)*) => {$(
+    ($($root:ident),*) => {$(
         // Ensure the root is owned
         let mut $root = $crate::raw::Root::new();
 
@@ -75,5 +75,16 @@ macro_rules! letroot {
         let mut $root = unsafe {
             $crate::Root::new(&mut $root)
         };
-    )*}
+    )*};
+    ($($root:ident in $allocator:expr),*) => {$(
+        // Ensure the root is owned
+        let mut $root = $crate::raw::Root::new_in($allocator);
+
+        // Shadow the original binding so that it can't be directly accessed
+        // ever again.
+        #[allow(unused_mut)]
+        let mut $root = unsafe {
+            $crate::Root::new(&mut $root)
+        };
+    )*};
 }

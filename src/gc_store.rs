@@ -21,7 +21,7 @@ impl<'root, T: Trace> GcStore<'root, T> {
     }
 }
 
-impl<'root, T: Trace, A: Allocator + Clone> GcStore<'root, T, A> {
+impl<'root, T: Trace, A: Allocator> GcStore<'root, T, A> {
     pub fn new_in(data: T, allocator: A) -> GcStore<'root, T, A> {
         GcStore {
             ptr: nocturne_gc::alloc_unmanaged_in(data, allocator),

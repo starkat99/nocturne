@@ -17,7 +17,7 @@ impl<T: Trace> GcPtr<T> {
     }
 }
 
-impl<T: Trace, A: Allocator + Clone> GcPtr<T, A> {
+impl<T: Trace, A: Allocator> GcPtr<T, A> {
     pub(crate) fn new_in(data: T, allocator: A) -> GcPtr<T, A> {
         GcPtr {
             inner: Allocation::new_in(data, allocator),

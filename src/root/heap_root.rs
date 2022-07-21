@@ -8,8 +8,7 @@ use crate::root::Reroot;
 use crate::Gc;
 
 pub struct HeapRoot<T: ?Sized, A: Allocator + 'static = Global> {
-    #[allow(dead_code)]
-    root: Pin<Box<Root<A>, A>>,
+    _root: Pin<Box<Root<A>, A>>,
     ptr: GcPtr<T, A>,
 }
 
@@ -43,7 +42,7 @@ where
             ptr.allocator().clone(),
         ));
         Pin::get_ref(root.as_ref()).enroot(ptr);
-        HeapRoot { root, ptr }
+        HeapRoot { _root: root, ptr }
     }
 }
 
@@ -64,7 +63,7 @@ impl<T: Trace + ?Sized, A: Allocator + Clone + 'static> Clone for HeapRoot<T, A>
             Pin::get_ref(root.as_ref()).enroot(self.ptr);
 
             HeapRoot {
-                root,
+                _root: root,
                 ptr: self.ptr,
             }
         }

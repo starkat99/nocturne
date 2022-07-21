@@ -28,7 +28,7 @@ pub fn alloc_unmanaged<T: Trace>(data: T) -> GcPtr<T> {
 }
 
 /// Allocate an unmanaged GcPtr
-pub fn alloc_unmanaged_in<T: Trace, A: Allocator + Clone>(data: T, allocator: A) -> GcPtr<T, A> {
+pub fn alloc_unmanaged_in<T: Trace, A: Allocator>(data: T, allocator: A) -> GcPtr<T, A> {
     GcPtr::new_in(data, allocator)
 }
 
@@ -42,7 +42,7 @@ pub fn alloc<T: Trace>(data: T) -> GcPtr<T> {
 }
 
 /// Allocate a managed GcPtr
-pub fn alloc_in<T: Trace, A: Allocator + Clone + 'static>(data: T, allocator: A) -> GcPtr<T, A> {
+pub fn alloc_in<T: Trace, A: Allocator + 'static>(data: T, allocator: A) -> GcPtr<T, A> {
     let gc_ptr = alloc_unmanaged_in(data, allocator);
     unsafe {
         manage(gc_ptr);

@@ -1,12 +1,11 @@
-use std::alloc::{Allocator, Global};
-use std::cell::Cell;
-use std::mem;
-use std::ptr::NonNull;
-
+use crate::{list::List, trace::Trace};
 use log::*;
-
-use crate::list::List;
-use crate::trace::Trace;
+use std::{
+    alloc::{Allocator, Global},
+    cell::Cell,
+    mem,
+    ptr::NonNull,
+};
 
 pub struct Data {
     _extern: (),
@@ -43,33 +42,37 @@ impl<T: Trace> Allocation<T> {
         let allocation = Box::new(Allocation {
             header: Header {
                 list: List::default(),
-                vtable: vtable,
+                vtable,
                 marked: Cell::new(false),
                 allocator: Global,
             },
             data,
         });
-        unsafe { NonNull::new_unchecked(Box::into_raw(allocation)) }
+        Box::leak(allocation).into()
     }
 }
 
-impl<T: Trace, A: Allocator + Clone> Allocation<T, A> {
+impl<T: Trace, A: Allocator> Allocation<T, A> {
     pub fn new_in(data: T, allocator: A) -> NonNull<Allocation<T, A>> {
         let vtable = extract_vtable(&data);
 
-        let allocation = Box::new_in(
-            Allocation {
-                header: Header {
-                    list: List::default(),
-                    vtable: vtable,
-                    marked: Cell::new(false),
-                    allocator: allocator.clone(),
-                },
-                data,
-            },
-            allocator,
-        );
-        unsafe { NonNull::new_unchecked(Box::into_raw(allocation)) }
+        // Create unitialized memory then initialize it, so we don't have to clone allocator
+        let (allocation, allocator) = Box::into_raw_with_allocator(Box::new_uninit_in(allocator));
+
+        unsafe {
+            NonNull::new_unchecked(allocation)
+                .as_mut()
+                .write(Allocation {
+                    header: Header {
+                        list: List::default(),
+                        vtable,
+                        marked: Cell::new(false),
+                        allocator,
+                    },
+                    data,
+                })
+                .into()
+        }
     }
 }
 
@@ -82,7 +85,7 @@ impl<T: ?Sized, A: Allocator> Allocation<T, A> {
 impl<A: Allocator> Allocation<Data, A> {
     pub unsafe fn free(self: *mut Allocation<Data, A>) {
         (&mut *self).dyn_data_mut().finalize();
-        drop(Box::from_raw_in(self, (&mut *self).allocator()))
+        drop(Box::from_raw_in(self, (&*self).allocator()))
     }
 }
 
