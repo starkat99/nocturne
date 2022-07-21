@@ -6,7 +6,7 @@ use crate::trace::Trace;
 
 pub struct Root<A: Allocator + 'static = Global> {
     idx: usize,
-    _phantom: PhantomData<A>,
+    _phantom: PhantomData<*mut A>,
 }
 
 impl Root {

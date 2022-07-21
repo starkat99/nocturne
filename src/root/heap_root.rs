@@ -7,6 +7,7 @@ use nocturne_gc::{GcPtr, Root, Trace};
 use crate::root::Reroot;
 use crate::Gc;
 
+/// TODO Completely unsound, roots currently always behave as stack roots
 pub struct HeapRoot<T: ?Sized, A: Allocator + 'static = Global> {
     _root: Pin<Box<Root<A>, A>>,
     ptr: GcPtr<T, A>,
@@ -42,7 +43,8 @@ where
             ptr.allocator().clone(),
         ));
         Pin::get_ref(root.as_ref()).enroot(ptr);
-        HeapRoot { _root: root, ptr }
+        HeapRoot { _root: root, ptr };
+        unimplemented!()
     }
 }
 

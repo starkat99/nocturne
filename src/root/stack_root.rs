@@ -20,7 +20,7 @@ impl<'root> Root<'root> {
     }
 }
 
-impl<'root, A: Allocator + Unpin + 'static> Root<'root, A> {
+impl<'root, A: Allocator + 'static> Root<'root, A> {
     pub fn gc_in<T>(self, data: T, allocator: A) -> Gc<'root, T::Rerooted, A>
     where
         T: Reroot<'root> + Trace,
@@ -28,18 +28,14 @@ impl<'root, A: Allocator + Unpin + 'static> Root<'root, A> {
     {
         unsafe { self.make(nocturne_gc::alloc_unmanaged_in(data, allocator)) }
     }
-}
 
-impl<'root, A: Allocator + 'static> Root<'root, A> {
     #[doc(hidden)]
     pub unsafe fn new(root: &'root mut nocturne_gc::Root<A>) -> Root<'root, A> {
         Root {
             root: Pin::new_unchecked(root),
         }
     }
-}
 
-impl<'root, A: Allocator + Unpin + 'static> Root<'root, A> {
     pub fn reroot<T>(self, gc: Gc<'_, T, A>) -> Gc<'root, T::Rerooted, A>
     where
         T: Reroot<'root> + ?Sized,
